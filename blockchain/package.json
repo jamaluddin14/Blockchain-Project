@@ -1,0 +1,8 @@
+{
+  "devDependencies": {
+    "@openzeppelin/contracts": "^5.0.2",
+    "@truffle/contract": "^4.6.31",
+    "chai": "^5.1.1",
+    "mocha": "^10.7.3"
+  }
+}
