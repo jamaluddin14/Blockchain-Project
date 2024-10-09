@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useApproveLoanMutation, useRejectLoanMutation } from '../features/api/apiSlice';
-import { connectWallet, sendTransaction } from '../utils/web3Utils';
+import { useApproveLoanMutation, useRejectLoanMutation ,useAddPublicKeyMutation} from '../features/api/apiSlice';
+import { checkIfWalletIsConnected, connectWallet, sendTransaction } from '../utils/web3Utils';
 import ErrorModal from './ErrorModal';
 import { useSelector, useDispatch } from 'react-redux';
 import { setPublicKey } from '../features/auth/authSlice';
@@ -12,19 +12,23 @@ const LoanActions = ({ loanId, refetchLoans }) => {
   const [isLoading, setIsLoading] = useState(false);
   const auth = useSelector((state) => state.auth);
   const dispatch = useDispatch();
+  const [addPublicKey]=useAddPublicKeyMutation();
 
   const handleApproveLoan = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      let publicKey;
-      if (!auth.publicKey) {
+      let publicKey=auth.publicKey;
+      
+      if (!publicKey) {
         publicKey = await connectWallet();
         if (!publicKey) throw new Error('Failed to connect to wallet.');
         dispatch(setPublicKey(publicKey));
-      } else {
-        publicKey = auth.publicKey;
+      } 
+      else {
+        await checkIfWalletIsConnected(publicKey);
       }
+
       const response = await approveLoan({ loan_id: loanId }).unwrap();
       if (response && response.tx) {
         const transactionHash = await sendTransaction(response.tx, publicKey);
@@ -45,9 +49,12 @@ const LoanActions = ({ loanId, refetchLoans }) => {
     setIsLoading(true);
     setError(null);
     try {
-      const publicKey = await connectWallet() || auth.publicKey;
-      if (!publicKey) throw new Error('Failed to connect to wallet.');
-
+      let publicKey = auth.publicKey
+      if (!publicKey) {
+        publicKey = await connectWallet();
+        dispatch(setPublicKey(publicKey));
+        addPublicKey(publicKey)
+      }
       const gasTransaction = await rejectLoan({ loan_id: loanId }).unwrap();
       if (!gasTransaction || !gasTransaction.tx) throw new Error('No transaction data received.');
 

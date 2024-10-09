@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useRegisterMutation } from '../features/api/apiSlice';
-import {  connectWallet } from '../utils/web3Utils'; // Assume this is where your wallet connection logic is
 import ErrorModal from '../components/ErrorModal'; // Assume this is the error modal component
-import { useSelector,useDispatch } from 'react-redux'; // Import the useSelector hook from react-redux
-import {setPublicKey} from '../features/auth/authSlice'; // Import the setPublicKey action creator
+import { useSelector, useDispatch } from 'react-redux';
+import { setPublicKey } from '../features/auth/authSlice'; // Import the setPublicKey action creator
+import { signUp } from '../firebase'; // Import the signUp function from firebase.js
 
 const RegisterPage = () => {
   const [username, setUsername] = useState('');
@@ -13,9 +13,7 @@ const RegisterPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
-  const [register,{error:apiError}] = useRegisterMutation();
-  const auth = useSelector((state) => state.auth);
-  const publicKey = auth.publicKey;
+  const [register, { error: apiError }] = useRegisterMutation();
   const dispatch = useDispatch();
 
   useEffect(() => {
@@ -23,13 +21,14 @@ const RegisterPage = () => {
       setError(apiError.message || 'Registration failed');
     }
   }, [apiError]);
+
   const handleRegister = async () => {
     setIsLoading(true);
     try {
-      if (!publicKey) {
-        throw new Error('Wallet is not connected');
-      }
-      await register({ username, password,email, public_key: publicKey });
+      // Call the Firebase signUp function
+      const userCredential = await signUp(email, password);
+      const { uid } = userCredential.user; // Get the Firebase UUID
+      await register({ name:username, email, uuid: uid }); // Replace public_key with uuid
       navigate('/login');
     } catch (error) {
       setError(error.message || 'Registration failed');
@@ -39,20 +38,7 @@ const RegisterPage = () => {
     }
   };
 
-  const handleConnectWallet = async () => {
-    try {
-      const connectedPublicKey = await connectWallet();
-      if (connectedPublicKey) {
-        dispatch(setPublicKey(connectedPublicKey));
-      } else {
-        setError('Failed to connect wallet');
-      }
-    } catch (error) {
-      setError('Error connecting to wallet: ' + error.message);
-    }
-  };
-
-  const isFormValid = username && password && email && publicKey;
+  const isFormValid = username && password && email; // Removed publicKey from validation
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-900">
@@ -60,7 +46,7 @@ const RegisterPage = () => {
         <h2 className="text-2xl font-bold text-white mb-6 text-center">Register</h2>
         <input
           type="text"
-          placeholder="Username"
+          placeholder="Full Name" // Changed placeholder to Full Name
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           className="mb-4 p-3 rounded bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
@@ -79,12 +65,6 @@ const RegisterPage = () => {
           onChange={(e) => setEmail(e.target.value)}
           className="mb-4 p-3 rounded bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
         />
-        <button
-          onClick={handleConnectWallet}
-          className="w-full p-3 bg-blue-600 hover:bg-blue-700 rounded-lg transition-all duration-300 text-white font-semibold mb-4"
-        >
-          Connect Wallet
-        </button>
         <button
           onClick={handleRegister}
           className={`w-full p-3 bg-blue-600 hover:bg-blue-700 rounded-lg transition-all duration-300 text-white font-semibold flex items-center justify-center ${

@@ -72,12 +72,12 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
     )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
+        _id: str = payload.get("sub")
+        if _id is None:
             raise credentials_exception
     except JWTError:
         raise credentials_exception
-    user = db.users.find_one({"username": username})
+    user = db.users.find_one({"_id": _id})
     if user is None:
         raise credentials_exception
     print(user)
@@ -86,7 +86,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
 # Send transaction function
 def send_transaction(function, public_address,value=0):
     # Get the nonce using the public address
-    nonce = web3.eth.get_transaction_count(web3.to_checksum_address(public_address))
+    nonce = web3.eth.get_transaction_count(public_address)
     gas_price = web3.eth.gas_price  # get current gas price
     txn = function.build_transaction({
     'gas': 3000000,
@@ -94,4 +94,5 @@ def send_transaction(function, public_address,value=0):
     'value': value,
     'gasPrice': gas_price
     })
+    print(txn)
     return txn

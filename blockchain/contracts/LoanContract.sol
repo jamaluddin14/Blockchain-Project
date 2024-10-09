@@ -2,111 +2,174 @@
 pragma solidity ^0.8.0;
 
 contract LoanContract {
-    // Token details for the loan contract
-    string public name = "LoanToken";
-    string public symbol = "LTK";
+    string public constant name = "LoanToken";
+    string public constant symbol = "LTK";
 
     mapping(address => mapping(address => uint256)) public allowance;
 
-    // Enum to track loan status
     enum LoanStatus { Pending, Approved, Repaid, Rejected }
 
-    // Struct for storing loan details
     struct Loan {
         uint loanId;
         address borrower;
         address lender;
         uint amount;
         string collateral;
-        LoanStatus status; // Use enum for status
+        LoanStatus status;
+        uint createdAt;
+        uint dueDate;
+        uint lastModifiedAt;
+        uint requestedDueDate;
+        bool renegotiationRequested;
     }
 
-    uint public loanCounter; // Counter for loan IDs
-    mapping(uint => Loan) public loans; // Mapping to store loans by ID
-    mapping(address => uint[]) public userLoans; // Mapping to store loans associated with each user
+    uint public loanCounter;
+    mapping(uint => Loan) public loans;
+    mapping(address => uint[]) public userLoans;
 
-    // Events for logging actions on the blockchain
     event Transfer(address indexed from, address indexed to, uint256 value);
-    event LoanRequested(uint loanId, address borrower, address lender, uint amount, string collateral);
-    event LoanApproved(uint loanId);
-    event LoanRejected(uint loanId);
-    event LoanRepaid(uint loanId);
+    event LoanRequested(uint indexed loanId, address indexed borrower, address indexed lender, uint amount, string collateral, uint dueDate);
+    event LoanApproved(uint indexed loanId);
+    event LoanRejected(uint indexed loanId);
+    event LoanRepaid(uint indexed loanId);
+    event DueDateRenegotiationRequested(uint indexed loanId, uint requestedDueDate);
+    event DueDateRenegotiationApproved(uint indexed loanId, uint newDueDate);
 
-    // Function to request a loan
-    function requestLoan(address _lender, uint _amount, string memory _collateral) public {
+    function requestLoan(address _lender, uint _amount, string memory _collateral, uint _dueDate) public {
         require(_amount > 0, "Loan amount must be greater than 0");
         require(_lender != address(0), "Invalid lender address");
+        require(_dueDate > block.timestamp, "Due date must be in the future");
 
         loanCounter++;
-        loans[loanCounter] = Loan(loanCounter, msg.sender, _lender, _amount, _collateral, LoanStatus.Pending);
-        userLoans[msg.sender].push(loanCounter); // Add loan ID to borrower's list
-        userLoans[_lender].push(loanCounter);    // Add loan ID to lender's list
+        loans[loanCounter] = Loan(
+            loanCounter,
+            msg.sender,
+            _lender,
+            _amount,
+            _collateral,
+            LoanStatus.Pending,
+            block.timestamp,
+            _dueDate,
+            block.timestamp,
+            0,
+            false
+        );
 
-        emit LoanRequested(loanCounter, msg.sender, _lender, _amount, _collateral);
+        userLoans[msg.sender].push(loanCounter);
+        userLoans[_lender].push(loanCounter);
+
+        emit LoanRequested(loanCounter, msg.sender, _lender, _amount, _collateral, _dueDate);
     }
 
-    // Function for the lender to approve a loan and send Ether to the borrower
     function approveLoan(uint _loanId) public payable {
         Loan storage loan = loans[_loanId];
         require(msg.sender == loan.lender, "Only the lender can approve the loan");
         require(loan.status == LoanStatus.Pending, "Loan is not pending");
         require(msg.value == loan.amount, "Must send the exact loan amount");
+
         loan.status = LoanStatus.Approved;
+
         (bool success, ) = loan.borrower.call{value: loan.amount}("");
         require(success, "Transfer to borrower failed");
+
+        loan.lastModifiedAt = block.timestamp;
+
         emit LoanApproved(_loanId);
     }
 
-    // Function for the lender to reject a loan
     function rejectLoan(uint _loanId) public {
         Loan storage loan = loans[_loanId];
         require(msg.sender == loan.lender, "Only the lender can reject the loan");
         require(loan.status == LoanStatus.Pending, "Loan is not pending");
+
         loan.status = LoanStatus.Rejected;
+        loan.lastModifiedAt = block.timestamp;
+
         emit LoanRejected(_loanId);
     }
 
-    // Function for the borrower to repay a loan and send Ether back to the lender
     function repayLoan(uint _loanId) public payable {
         Loan storage loan = loans[_loanId];
         require(msg.sender == loan.borrower, "Only the borrower can repay the loan");
         require(loan.status == LoanStatus.Approved, "Loan is not approved");
         require(msg.value == loan.amount, "Must repay the exact loan amount");
+        require(!loan.renegotiationRequested, "Cannot repay while renegotiation is in progress");
 
         loan.status = LoanStatus.Repaid;
 
-        // Transfer the repaid amount to the lender
         (bool success, ) = loan.lender.call{value: loan.amount}("");
         require(success, "Transfer to lender failed");
+
+        loan.lastModifiedAt = block.timestamp;
 
         emit LoanRepaid(_loanId);
     }
 
-    // Function to get loans of a user (either as borrower or lender)
-    function getUserLoans(address _user, bool _isBorrower) public view returns (Loan[] memory) {
+    function requestDueDateRenegotiation(uint _loanId, uint _newDueDate) public {
+        Loan storage loan = loans[_loanId];
+        require(msg.sender == loan.borrower, "Only the borrower can request renegotiation");
+        require(loan.status == LoanStatus.Approved, "Loan must be approved to renegotiate");
+        require(_newDueDate > block.timestamp, "New due date must be in the future");
+
+        loan.requestedDueDate = _newDueDate;
+        loan.renegotiationRequested = true;
+
+        emit DueDateRenegotiationRequested(_loanId, _newDueDate);
+    }
+
+    function approveDueDateRenegotiation(uint _loanId) public {
+        Loan storage loan = loans[_loanId];
+        require(msg.sender == loan.lender, "Only the lender can approve renegotiation");
+        require(loan.renegotiationRequested, "Renegotiation not requested");
+        require(loan.requestedDueDate > block.timestamp, "New due date must be in the future");
+
+        loan.dueDate = loan.requestedDueDate;
+        loan.lastModifiedAt = block.timestamp;
+        loan.renegotiationRequested = false;
+
+        emit DueDateRenegotiationApproved(_loanId, loan.dueDate);
+    }
+
+    function getAllLoans() public view returns (Loan[] memory) {
+        Loan[] memory allLoans = new Loan[](loanCounter);
+
+        for (uint i = 1; i <= loanCounter; i++) {
+            allLoans[i - 1] = loans[i];
+        }
+
+        return allLoans;
+    }
+
+    function getUserLoans(address _user, bool _isBorrower, bool _requests) public view returns (Loan[] memory) {
         uint[] storage loanIds = userLoans[_user];
         uint count = 0;
 
-        // Count the number of relevant loans for the user
         for (uint i = 0; i < loanIds.length; i++) {
-            if ((_isBorrower && loans[loanIds[i]].borrower == _user) || 
-                (!_isBorrower && loans[loanIds[i]].lender == _user)) {
+            Loan storage loan = loans[loanIds[i]];
+            bool isUserLoan = (_isBorrower && loan.borrower == _user) || (!_isBorrower && loan.lender == _user);
+            bool matchesRequestStatus = (_requests && (loan.status == LoanStatus.Pending || loan.renegotiationRequested)) || 
+                                        (!_requests && (loan.status == LoanStatus.Approved || loan.status == LoanStatus.Repaid || loan.status == LoanStatus.Rejected));
+            
+            if (isUserLoan && matchesRequestStatus) {
                 count++;
             }
         }
 
-        // Create an array to hold the user's loans
-        Loan[] memory userLoansList = new Loan[](count); // Fixed memory allocation
-        uint index = 0;
+        Loan[] memory filteredLoans = new Loan[](count);
+        count = 0;
 
-        // Fill the user's loan list
         for (uint i = 0; i < loanIds.length; i++) {
-            if ((_isBorrower && loans[loanIds[i]].borrower == _user) || 
-                (!_isBorrower && loans[loanIds[i]].lender == _user)) {
-                userLoansList[index] = loans[loanIds[i]];
-                index++;
+            Loan storage loan = loans[loanIds[i]];
+            bool isUserLoan = (_isBorrower && loan.borrower == _user) || (!_isBorrower && loan.lender == _user);
+            bool matchesRequestStatus = (_requests && (loan.status == LoanStatus.Pending || loan.renegotiationRequested)) || 
+                                        (!_requests && (loan.status == LoanStatus.Approved || loan.status == LoanStatus.Repaid || loan.status == LoanStatus.Rejected));
+            
+            if (isUserLoan && matchesRequestStatus) {
+                filteredLoans[count] = loan;
+                count++;
             }
         }
-        return userLoansList;
+
+        return filteredLoans;
     }
 }

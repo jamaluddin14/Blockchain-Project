@@ -1,13 +1,9 @@
 from pydantic import BaseModel, Field
 from typing import List, Dict
 import uuid
-
+from typing import Optional
 class User(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()), alias="_id")
-    username: str
-    password: str
+    id: str = Field(alias="_id")
     email: str
-    public_key: str
+    public_key: Optional[str] = None
     friends: List[str] = []
-    score: int = 0
-    transactions: List[str] = []

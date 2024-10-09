@@ -4,7 +4,7 @@ import LoginPage from './pages/Login';
 import RegisterPage from './pages/Register';
 import DashboardPage from './pages/Dashboard';
 import LoanRequestForm from './components/LoanRequestForm';
-
+import AddPublicKey from './components/ConnectToWallet';
 const App = () => {
   return (
     <Router>
@@ -14,6 +14,7 @@ const App = () => {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/" element={<DashboardPage />} />
           <Route path="/request-loan/:friendId" element={<LoanRequestForm />} />
+          <Route path="/add-public-key" element={<AddPublicKey />} />
         </Routes>
       </div>
     </Router>

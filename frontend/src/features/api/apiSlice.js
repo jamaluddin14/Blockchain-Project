@@ -1,9 +1,11 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-console.log("Base_URL",process.env);
+
+const baseUrl = import.meta.env.VITE_API_URL;
+
 export const apiSlice = createApi({
   reducerPath: 'api',
   baseQuery: fetchBaseQuery({
-    baseUrl: process.env.REACT_APP_API_URL,
+    baseUrl: baseUrl,
     prepareHeaders: (headers, { getState }) => {
       const token = getState().auth.token;
       if (token) {
@@ -12,14 +14,23 @@ export const apiSlice = createApi({
       return headers;
     },
   }),
-  tagTypes: ['Loans', 'Friends'], // Add tagTypes
+  tagTypes: ['Loans', 'Friends', 'User'],
   endpoints: (builder) => ({
+    verifyOrRegister: builder.mutation({
+      query: (userData) => ({
+        url: '/auth/verify-or-register',
+        method: 'POST',
+        body: userData,
+      }),
+      invalidatesTags: ['User'],
+    }),
     login: builder.mutation({
       query: (credentials) => ({
         url: '/auth/login',
         method: 'POST',
         body: credentials,
       }),
+      invalidatesTags: ['User'],
     }),
     register: builder.mutation({
       query: (user) => ({
@@ -27,10 +38,11 @@ export const apiSlice = createApi({
         method: 'POST',
         body: user,
       }),
+      invalidatesTags: ['User'],
     }),
     getFriends: builder.query({
       query: () => '/friends',
-      providesTags: ['Friends'], // Provide tags for getFriends query
+      providesTags: ['Friends'],
     }),
     searchFriends: builder.query({
       query: (query) => `/friends/search?query=${query}`,
@@ -41,14 +53,14 @@ export const apiSlice = createApi({
         method: 'POST',
         body: { friend_id: friendId },
       }),
-      invalidatesTags: ['Friends'], // Invalidate friends cache after addFriend mutation
+      invalidatesTags: ['Friends'],
     }),
     getTopScorers: builder.query({
       query: () => '/friends/top-scorers',
     }),
     getLoans: builder.query({
-      query: (isBorrower) => `/loans?is_borrower=${isBorrower}`,
-      providesTags: ['Loans'], // Provide tags for getLoans query
+      query: (request) => `/loans?is_borrower=${request.is_borrower}&is_request=${request.is_request}`,
+      providesTags: ['Loans'],
     }),
     requestLoan: builder.mutation({
       query: (loanRequest) => ({
@@ -56,7 +68,7 @@ export const apiSlice = createApi({
         method: 'POST',
         body: loanRequest,
       }),
-      invalidatesTags: ['Loans'], // Invalidate loans cache after requestLoan mutation
+      invalidatesTags: ['Loans'],
     }),
     approveLoan: builder.mutation({
       query: (loanId) => ({
@@ -64,7 +76,7 @@ export const apiSlice = createApi({
         method: 'POST',
         body: loanId,
       }),
-      invalidatesTags: ['Loans'], // Invalidate loans cache after approveLoan mutation
+      invalidatesTags: ['Loans'],
     }),
     rejectLoan: builder.mutation({
       query: (loanId) => ({
@@ -72,7 +84,7 @@ export const apiSlice = createApi({
         method: 'POST',
         body: loanId,
       }),
-      invalidatesTags: ['Loans'], // Invalidate loans cache after rejectLoan mutation
+      invalidatesTags: ['Loans'],
     }),
     repayLoan: builder.mutation({
       query: (repayRequest) => ({
@@ -80,12 +92,37 @@ export const apiSlice = createApi({
         method: 'POST',
         body: repayRequest,
       }),
-      invalidatesTags: ['Loans'], // Invalidate loans cache after repayLoan mutation
+      invalidatesTags: ['Loans'],
+    }),
+    requestRegonegotitate: builder.mutation({
+      query: (reRequest) => ({
+        url: '/loans/repay',
+        method: 'POST',
+        body: reRequest,
+      }),
+      invalidatesTags: ['Loans'],
+    }),
+    approveRegonegotiate: builder.mutation({
+      query: (loanId) => ({
+        url: '/loans/approve',
+        method: 'POST',
+        body: loanId,
+      }),
+      invalidatesTags: ['Loans'],
+    }),
+    addPublicKey: builder.mutation({
+      query: (publicKey) => ({
+        url: '/auth/add-public-key',
+        method: 'POST',
+        body: { public_key: publicKey },
+      }),
+      invalidatesTags: ['User', 'Loans'],
     }),
   }),
 });
 
 export const {
+  useVerifyOrRegisterMutation,
   useLoginMutation,
   useRegisterMutation,
   useGetFriendsQuery,
@@ -97,4 +134,7 @@ export const {
   useApproveLoanMutation,
   useRejectLoanMutation,
   useRepayLoanMutation,
+  useAddPublicKeyMutation,
+  useRequestRegonegotitateMutation,
+  useApproveRegonegotiateMutation,
 } = apiSlice;

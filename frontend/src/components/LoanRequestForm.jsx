@@ -1,38 +1,49 @@
 import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { useRequestLoanMutation } from '../features/api/apiSlice';
-import { sendTransaction, connectWallet } from '../utils/web3Utils';
-import ErrorModal from '../components/ErrorModal';
+import { useRequestLoanMutation, useAddPublicKeyMutation } from '../features/api/apiSlice';
+import { sendTransaction, connectWallet, checkIfWalletIsConnected } from '../utils/web3Utils';
+import ErrorModal from './ErrorModal';
 import { setPublicKey } from '../features/auth/authSlice';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowLeft } from '@fortawesome/free-solid-svg-icons';
+import DatePicker from 'react-datepicker'; // Import DatePicker
+import 'react-datepicker/dist/react-datepicker.css'; // Import DatePicker CSS
 
 const LoanRequestForm = () => {
   const navigate = useNavigate();
   const [amount, setAmount] = useState('');
   const [collateral, setCollateral] = useState('');
+  const [dueDate, setDueDate] = useState(new Date()); // State for due date
   const [error, setError] = useState(null);
   const [requestLoan, { isLoading }] = useRequestLoanMutation();
   const auth = useSelector((state) => state.auth);
   const dispatch = useDispatch();
   const { friendId } = useParams();
+  const [addPublicKey] = useAddPublicKeyMutation();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
 
     try {
-      const response = await requestLoan({ lender_id: friendId, amount, collateral }).unwrap();
+      const response = await requestLoan({
+        lender_id: friendId,
+        amount,
+        collateral,
+        due_date: dueDate.toISOString() // Send the due date
+      }).unwrap();
 
-      if (!response || !response.tx) throw new Error("No transaction hash received from API.");
+      if (!response || !response.tx) throw new Error('No transaction hash received from API.');
 
       let publicKey = auth.publicKey;
       if (!publicKey) {
         publicKey = await connectWallet();
         dispatch(setPublicKey(publicKey));
+        addPublicKey(publicKey);
+      } else {
+        await checkIfWalletIsConnected(publicKey);
       }
-
       await sendTransaction(response.tx, publicKey);
       navigate('/');
     } catch (error) {
@@ -50,14 +61,16 @@ const LoanRequestForm = () => {
         >
           <FontAwesomeIcon icon={faArrowLeft} />
         </button>
-        
+
         {/* Form Title */}
         <h3 className="text-3xl font-semibold text-center mb-6 text-white">Request Loan</h3>
 
         {/* Form */}
         <form onSubmit={handleSubmit}>
           <div className="mb-6">
-            <label className="block text-white mb-2" htmlFor="amount">Loan Amount</label>
+            <label className="block text-white mb-2" htmlFor="amount">
+              Loan Amount
+            </label>
             <input
               type="number"
               id="amount"
@@ -69,7 +82,9 @@ const LoanRequestForm = () => {
             />
           </div>
           <div className="mb-6">
-            <label className="block text-white mb-2" htmlFor="collateral">Collateral</label>
+            <label className="block text-white mb-2" htmlFor="collateral">
+              Collateral
+            </label>
             <input
               type="text"
               id="collateral"
@@ -77,6 +92,19 @@ const LoanRequestForm = () => {
               onChange={(e) => setCollateral(e.target.value)}
               className="w-full p-3 rounded bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500"
               placeholder="Enter collateral"
+              required
+            />
+          </div>
+          <div className="mb-6">
+            <label className="block text-white mb-2" htmlFor="dueDate">
+              Due Date
+            </label>
+            <DatePicker
+              selected={dueDate}
+              onChange={(date) => setDueDate(date)}
+              className="w-full p-3 rounded bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500"
+              minDate={new Date()} // Disable past dates
+              placeholderText="Select due date"
               required
             />
           </div>
@@ -89,7 +117,11 @@ const LoanRequestForm = () => {
             }`}
             disabled={!amount || !collateral || isLoading}
           >
-            {isLoading ? <div className="loader border-t-4 border-b-4 border-white rounded-full w-4 h-4 animate-spin mx-auto"></div> : 'Submit Request'}
+            {isLoading ? (
+              <div className="loader border-t-4 border-b-4 border-white rounded-full w-4 h-4 animate-spin mx-auto"></div>
+            ) : (
+              'Submit Request'
+            )}
           </button>
         </form>
 
