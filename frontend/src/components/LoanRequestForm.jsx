@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { useRequestLoanMutation, useAddPublicKeyMutation } from '../features/api/apiSlice';
+import { useRequestLoanMutation, useAddPublicKeyMutation ,useSendNotificationMutation} from '../features/api/apiSlice';
 import { sendTransaction, connectWallet, checkIfWalletIsConnected } from '../utils/web3Utils';
 import ErrorModal from './ErrorModal';
 import { setPublicKey } from '../features/auth/authSlice';
@@ -21,6 +21,7 @@ const LoanRequestForm = () => {
   const dispatch = useDispatch();
   const { friendId } = useParams();
   const [addPublicKey] = useAddPublicKeyMutation();
+  const [sendNotification]=useSendNotificationMutation();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -45,6 +46,7 @@ const LoanRequestForm = () => {
         await checkIfWalletIsConnected(publicKey);
       }
       await sendTransaction(response.tx, publicKey);
+      await sendNotification({to:friendId, title:'Loan Request', body:`You have a new loan request from ${auth.username}`});
       navigate('/');
     } catch (error) {
       setError(error.message || 'An error occurred while requesting the loan.');

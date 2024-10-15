@@ -94,17 +94,17 @@ export const apiSlice = createApi({
       }),
       invalidatesTags: ['Loans'],
     }),
-    requestRegonegotitate: builder.mutation({
+    requestRenegotiation: builder.mutation({
       query: (reRequest) => ({
-        url: '/loans/repay',
+        url: '/loans/request-renegotiation',
         method: 'POST',
         body: reRequest,
       }),
       invalidatesTags: ['Loans'],
     }),
-    approveRegonegotiate: builder.mutation({
+    approveRenegotiation: builder.mutation({
       query: (loanId) => ({
-        url: '/loans/approve',
+        url: '/loans/approve-renegotiation',
         method: 'POST',
         body: loanId,
       }),
@@ -117,6 +117,29 @@ export const apiSlice = createApi({
         body: { public_key: publicKey },
       }),
       invalidatesTags: ['User', 'Loans'],
+    }),
+    sendNotification: builder.mutation({
+      query: (notification) => ({
+        url: '/notifications/send',
+        method: 'POST',
+        body: notification,
+      }),
+    }),
+    storeNotification: builder.mutation({
+      query: (notification) => ({
+        url: '/notifications/store',
+        method: 'POST',
+        body: notification,
+      }),
+    }),
+    getNotifications: builder.query({
+      query: () => `/notifications/list`,
+    }),
+    deleteNotification: builder.mutation({
+      query: (id) => ({
+        url: `/notifications/delete/${id}`,
+        method: 'DELETE',
+      }),
     }),
   }),
 });
@@ -135,6 +158,10 @@ export const {
   useRejectLoanMutation,
   useRepayLoanMutation,
   useAddPublicKeyMutation,
-  useRequestRegonegotitateMutation,
-  useApproveRegonegotiateMutation,
+  useRequestRenegotiationMutation,
+  useApproveRenegotiationMutation,
+  useSendNotificationMutation,
+  useStoreNotificationMutation,
+  useGetNotificationsQuery,
+  useDeleteNotificationMutation,
 } = apiSlice;

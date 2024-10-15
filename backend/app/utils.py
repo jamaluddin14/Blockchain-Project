@@ -11,9 +11,15 @@ import os
 import hashlib
 from base64 import b64encode, b64decode
 from dotenv import load_dotenv
+import firebase_admin
+from firebase_admin import credentials,messaging
+from uuid import uuid4
 
 # Load environment variables from .env file
 load_dotenv()
+
+cred = credentials.Certificate(r"C:\Users\Muhammad Sadiq\Desktop\Blockchain Project\backend\serviceAccount.json")
+firebase_admin.initialize_app(cred)
 
 # Configure password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -80,7 +86,6 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
     user = db.users.find_one({"_id": _id})
     if user is None:
         raise credentials_exception
-    print(user)
     return User(**user)
 
 # Send transaction function
@@ -94,5 +99,28 @@ def send_transaction(function, public_address,value=0):
     'value': value,
     'gasPrice': gas_price
     })
-    print(txn)
     return txn
+
+def send_notification(token: str, title: str, body: str):
+    # Create a message to send
+    message = messaging.Message(
+        notification=messaging.Notification(
+            title=title,
+            body=body,
+        ),
+        token=token,
+    )
+
+    try:
+        user=db.users.find_one({"FCM_token":{ "$in": [token]}})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found.")
+        # Send the message
+        response = messaging.send(message)
+        notification={"title":title,"body":body}
+        notification["user_id"]=user["_id"]
+        notification["_id"]=str(uuid4())
+        db.notifications.insert_one(notification)
+        print('Successfully sent message:', response)
+    except Exception as e:
+        print(f'Error sending message: {e}')

@@ -39,6 +39,10 @@ class LoanResponse(BaseModel):
     created_at: datetime  # Added created_at
     last_modified_at: datetime  # Added last_modified_at
     due_date: datetime  # Added due_date
+    renegotiation_request: bool  # Added for renegotiation
+    new_due_date: datetime  # Added for renegotiation
+    borrower_id: str
+    lender_id: str
 
 class LoanActionResponse(BaseModel):
     transaction_hash: str

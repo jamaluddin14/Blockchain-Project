@@ -132,6 +132,9 @@ const Login = () => {
             <span>Login with Facebook</span>
           </button>
         </div>
+        <p className="mt-4 text-center text-white">
+          {"Don't"} have an account? <a href="/register" className="text-blue-400 hover:underline">Register Here</a>
+        </p>
       </div>
     </div>
   );

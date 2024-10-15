@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, FacebookAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { getMessaging, getToken, onMessage } from 'firebase/messaging';
-
+import axios from 'axios';
 // Firebase configuration
 const firebaseConfig = {
     apiKey: "AIzaSyDDU0_VgWRasD58IEpLNQA2y7MYeYOl3QY",
@@ -24,7 +24,7 @@ const auth = getAuth(app);
 const messaging = getMessaging(app);
 
 // Request permission for notifications
-const requestNotificationPermission = async () => {
+const requestNotificationPermission = async (authToken,setFCM_token=(token)=>{}) => {
   try {
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
@@ -32,7 +32,19 @@ const requestNotificationPermission = async () => {
       // Get FCM token with the VAPID key
       const token = await getToken(messaging, { vapidKey: VAPID_KEY });
       if (token) {
-        console.log('FCM Token:', token);
+        const response = await axios.post(
+            `${import.meta.env.VITE_API_URL}/notifications/store-token`,
+            {
+                token,
+            },
+            {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authToken}`,
+                },
+            }
+        );
+        setFCM_token(token);
         // Send token to the server if needed
       } else {
         console.log('No registration token available.');
@@ -45,13 +57,10 @@ const requestNotificationPermission = async () => {
   }
 };
 
-// Handle incoming messages
-onMessage(messaging, (payload) => {
-  console.log('Message received:', payload);
-});
 
 // Google Provider
 const googleProvider = new GoogleAuthProvider();
+
 
 // Facebook Provider
 const facebookProvider = new FacebookAuthProvider();
@@ -71,4 +80,4 @@ const signInWithFacebook = () => signInWithPopup(auth, facebookProvider);
 // Log out
 const logOut = () => signOut(auth);
 
-export { auth, signUp, logIn, signInWithGoogle, signInWithFacebook, logOut, requestNotificationPermission };
+export { auth, signUp, logIn, signInWithGoogle, signInWithFacebook, logOut, requestNotificationPermission,messaging };

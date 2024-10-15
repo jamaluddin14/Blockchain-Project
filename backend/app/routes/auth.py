@@ -24,12 +24,10 @@ def verify_user(user: UserCreate):
 
 @router.post("/register", response_model=UserResponse)
 def register(user: UserCreate):
-    print(user.uuid)
     user_dict = user.dict()
     user_dict["friends"] = []
     user_dict["_id"]= user.uuid
     user_dict.pop("uuid")
-    print(user_dict)
     if db.users.find_one({"email": user.email}):
         raise HTTPException(status_code=400, detail="Email already registered")
     if db.users.find_one({"_id": user.uuid}):

@@ -1,90 +1,74 @@
 import React, { useState } from 'react';
-import { useApproveLoanMutation, useRejectLoanMutation ,useAddPublicKeyMutation} from '../features/api/apiSlice';
+import { useApproveLoanMutation, useRejectLoanMutation, useAddPublicKeyMutation, useSendNotificationMutation } from '../features/api/apiSlice';
 import { checkIfWalletIsConnected, connectWallet, sendTransaction } from '../utils/web3Utils';
 import ErrorModal from './ErrorModal';
 import { useSelector, useDispatch } from 'react-redux';
 import { setPublicKey } from '../features/auth/authSlice';
+import { motion } from 'framer-motion';
 
-const LoanActions = ({ loanId, refetchLoans }) => {
+const LoanActions = ({ loanId, refetchLoans, friendId }) => {
   const [approveLoan] = useApproveLoanMutation();
   const [rejectLoan] = useRejectLoanMutation();
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const auth = useSelector((state) => state.auth);
   const dispatch = useDispatch();
-  const [addPublicKey]=useAddPublicKeyMutation();
+  const [addPublicKey] = useAddPublicKeyMutation();
+  const [sendNotification] = useSendNotificationMutation();
 
-  const handleApproveLoan = async () => {
+  const handleTransaction = async (transactionFn, params, notification) => {
     setIsLoading(true);
     setError(null);
     try {
-      let publicKey=auth.publicKey;
-      
+      let publicKey = auth.publicKey;
+
       if (!publicKey) {
         publicKey = await connectWallet();
         if (!publicKey) throw new Error('Failed to connect to wallet.');
         dispatch(setPublicKey(publicKey));
-      } 
-      else {
+        await addPublicKey({ publicKey }).unwrap();
+      } else {
         await checkIfWalletIsConnected(publicKey);
       }
 
-      const response = await approveLoan({ loan_id: loanId }).unwrap();
-      if (response && response.tx) {
-        const transactionHash = await sendTransaction(response.tx, publicKey);
-        console.log('Transaction successful, hash:', transactionHash);
-      } else {
-        throw new Error('No transaction data received from the API.');
-      }
+      const response = await transactionFn(params).unwrap();
+      if (!response || !response.tx) throw new Error('No transaction data received.');
+
+      const transactionHash = await sendTransaction(response.tx, publicKey);
+      await sendNotification({ ...notification, to: friendId });
+      console.log('Transaction successful, hash:', transactionHash);
       refetchLoans();
     } catch (error) {
-      console.error('Failed to approve loan:', error);
-      setError(error.message || 'An error occurred while approving the loan.');
+      console.error('Transaction failed:', error);
+      setError(error.message || 'An error occurred during the transaction.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleRejectLoan = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      let publicKey = auth.publicKey
-      if (!publicKey) {
-        publicKey = await connectWallet();
-        dispatch(setPublicKey(publicKey));
-        addPublicKey(publicKey)
-      }
-      const gasTransaction = await rejectLoan({ loan_id: loanId }).unwrap();
-      if (!gasTransaction || !gasTransaction.tx) throw new Error('No transaction data received.');
-
-      const txHash = await sendTransaction(gasTransaction.tx, publicKey);
-      console.log('Transaction successful, hash:', txHash);
-      refetchLoans();
-    } catch (error) {
-      console.error('Failed to reject loan:', error);
-      setError(error.message || 'An error occurred while rejecting the loan.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const handleApproveLoan = () => handleTransaction(approveLoan, { loan_id: loanId }, { title: 'Loan Approved', body: 'Your loan has been approved by the lender' });
+  const handleRejectLoan = () => handleTransaction(rejectLoan, { loan_id: loanId }, { title: 'Loan Rejected', body: 'Your loan request has been rejected by the lender' });
 
   return (
-    <div className="loan-actions">
-      <button
+    <div className="flex space-x-2">
+      <motion.button
         onClick={handleApproveLoan}
-        className={`p-3 bg-green-600 hover:bg-green-700 rounded-md mr-2 transition-all duration-300 text-white font-semibold ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+        className={`px-4 py-2 bg-green-600 hover:bg-green-700 rounded-md text-white font-semibold shadow-md transition-all duration-300 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
         disabled={isLoading}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
       >
         {isLoading ? 'Approving...' : 'Approve'}
-      </button>
-      <button
+      </motion.button>
+      <motion.button
         onClick={handleRejectLoan}
-        className={`p-3 bg-red-600 hover:bg-red-700 rounded-md transition-all duration-300 text-white font-semibold ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+        className={`px-4 py-2 bg-red-600 hover:bg-red-700 rounded-md text-white font-semibold shadow-md transition-all duration-300 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
         disabled={isLoading}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
       >
         {isLoading ? 'Rejecting...' : 'Reject'}
-      </button>
+      </motion.button>
       {error && <ErrorModal message={error} onClose={() => setError(null)} />}
     </div>
   );
